@@ -9,7 +9,6 @@ library(xlsx)
 library(WDI)
 
 
-
 ###########################################################################################################################################
 
 # Load country standard names for matching
@@ -18,11 +17,14 @@ standard_names <- read.xlsx2('D:/Dropbox/_Classes/Data/Country Lists.xlsx',sheet
 
 ###########################################################################################################################################
 
+# Data Location
+data_location <- "D:/Dropbox/_Classes/Data/"
+
 # Load UDS data
-data_uds <- read_csv('D:/Dropbox/_Classes/Data/UDS/uds_summary.csv')
+data_uds <- read_csv(paste0(data_location,'UDS/uds_summary.csv'))
 
 # load WDI indicators
-wdi_vars <- read.xlsx2('D:/Dropbox/_Classes/Data/World Bank Data/Variables.xlsx',sheetIndex = 1) %>%
+wdi_vars <- read.xlsx2(paste0(data_location,'World Bank Data/Variables.xlsx'),sheetIndex = 1) %>%
   as.tibble() %>% mutate_all('as.character')
 
 # GDP data - GDP per capita (current US$)
@@ -46,16 +48,23 @@ data_all <- data_uds %>%
   
 ###########################################################################################################################################
 
+# view data
 data_all %>% filter(country=='South Korea') %>% print(n=Inf)
 
 
+# setup results data.frame
 results <- expand.grid(country=unique(data_all$country),
                        start=1960:2007,
                        end=1965:2012,
-                       order=5,
+                       order=c(4,6,8,10),
                        grangerP_Dem=NA,
-                       grangerP_GDP=NA) %>% as.tibble()
+                       grangerP_GDP=NA) %>% 
+  as.tibble() %>%
+  filter(end-start<=20,end-start>=6,end-start>order+2)
 
+
+# run all Granger Tests
+start_time <- Sys.time()
 for (i in 1:nrow(results)){
   print(i)
   results$grangerP_Dem[i] <- try(grangertest(Democracy~GDPperCapita,
@@ -74,8 +83,9 @@ for (i in 1:nrow(results)){
                                                       year <= results$end[i]),
                                                   order=results$order[i])[[4]][2],silent=T)
 }
+(granger_time <- Sys.time()-start_time)
 
-
+# filter results
 results_filt <- results %>%
   mutate(grangerP_Dem=as.numeric(grangerP_Dem),
          grangerP_GDP=as.numeric(grangerP_GDP)) %>%
@@ -95,7 +105,7 @@ results_filt <- results %>%
   filter(len<=20) %>%
   arrange(country,start)
   
-
+# export results
 results_filt %>%
   left_join(results_filt %>%
   select(country,start,end,grangerP_Dem) %>%
